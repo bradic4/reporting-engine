@@ -9,41 +9,36 @@ public static class StaffEndpoints
     {
         app.MapGet("/api/staff", async (HttpContext ctx, IStaffService svc) =>
         {
-            if (!ctx.User.HasClaim("CanManageStaff", "True"))
-                return Results.Json(new { error = "Access denied" }, statusCode: 403);
-
             var staff = await svc.GetAllStaffAsync();
             return Results.Ok(staff);
-        }).RequireAuthorization();
+        }).RequireAuthorization("CanManageStaff");
 
         app.MapPost("/api/staff", async (HttpContext ctx, IStaffService svc) =>
         {
-            if (!ctx.User.HasClaim("CanManageStaff", "True"))
-                return Results.Json(new { error = "Access denied" }, statusCode: 403);
-
             var body = await ctx.Request.ReadFromJsonAsync<StaffRequest>();
             if (body == null || string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Password))
                 return Results.BadRequest(new { error = "Username and password are required" });
 
-            var result = await svc.CreateStaffAsync(body);
+            var performedBy = ctx.User.Identity?.Name ?? "unknown";
+            var result = await svc.CreateStaffAsync(body, performedBy);
             return result.Error is not null
                 ? Results.BadRequest(new { error = result.Error })
                 : Results.Ok(new { result.Id, result.Username });
-        }).RequireAuthorization();
+        }).RequireAuthorization("CanManageStaff")
+          .AddEndpointFilter<GamingDW.WebApp.Validation.ValidationFilter<StaffRequest>>();
 
         app.MapPut("/api/staff/{id:int}", async (int id, HttpContext ctx, IStaffService svc) =>
         {
-            if (!ctx.User.HasClaim("CanManageStaff", "True"))
-                return Results.Json(new { error = "Access denied" }, statusCode: 403);
-
             var body = await ctx.Request.ReadFromJsonAsync<StaffRequest>();
             if (body == null) return Results.BadRequest(new { error = "Invalid body" });
 
-            var result = await svc.UpdateStaffAsync(id, body);
+            var performedBy = ctx.User.Identity?.Name ?? "unknown";
+            var result = await svc.UpdateStaffAsync(id, body, performedBy);
             return result.Error is not null
                 ? Results.NotFound(new { error = result.Error })
                 : Results.Ok(new { result.Id, result.Username });
-        }).RequireAuthorization();
+        }).RequireAuthorization("CanManageStaff")
+          .AddEndpointFilter<GamingDW.WebApp.Validation.ValidationFilter<StaffRequest>>();
 
         // ── Stats ──
         app.MapGet("/api/stats", async (IStaffService svc) =>

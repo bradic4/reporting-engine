@@ -1,11 +1,15 @@
 import { fmt, money, loadStats } from './utils.js';
 import { setLoaded } from './main.js';
+import { apiGet, apiPost, apiPut, apiDelete } from './api.js';
+import { showToast, showConfirm } from './toast.js';
 
 let allTargets = [];
 
 export async function loadTargets() {
-    allTargets = await (await fetch('/api/targets')).json();
-    renderTargetsTable();
+    try {
+        allTargets = await apiGet('/api/targets') || [];
+        renderTargetsTable();
+    } catch { }
 }
 
 function renderTargetsTable() {
@@ -29,30 +33,33 @@ function renderTargetsTable() {
 export function setupTargetsEvents() {
     document.getElementById('btn-check-progress').addEventListener('click', async () => {
         const date = document.getElementById('target-progress-date').value;
-        if (!date) { alert('Select a date'); return; }
-        const data = await (await fetch(`/api/targets/progress?date=${date}`)).json();
-        const grid = document.getElementById('target-progress');
-        if (!data.progress || data.progress.length === 0) {
-            grid.innerHTML = '<p style="color:var(--text-muted)">No targets set for this date</p>';
-            return;
-        }
-        grid.innerHTML = data.progress.map(p => {
-            const pct = Math.min(p.progressPct, 100);
-            const cls = pct >= 80 ? 'good' : pct >= 50 ? 'mid' : 'low';
-            const isMonetary = ['Deposits', 'Withdrawals', 'GGR', 'BonusCost', 'NetRevenue'].includes(p.metricName);
-            const fmtFn = isMonetary ? money : fmt;
-            return `
-                <div class="target-card">
-                    <div class="metric-name">${p.metricName}</div>
-                    <div class="values">
-                        <span class="actual">${fmtFn(p.actual)}</span>
-                        <span class="target-val">/ ${fmtFn(p.target)}</span>
+        if (!date) { showToast('Please select a date', 'warning'); return; }
+        
+        try {
+            const data = await apiGet(`/api/targets/progress?date=${date}`);
+            const grid = document.getElementById('target-progress');
+            if (!data.progress || data.progress.length === 0) {
+                grid.innerHTML = '<p style="color:var(--text-muted)">No targets set for this date</p>';
+                return;
+            }
+            grid.innerHTML = data.progress.map(p => {
+                const pct = Math.min(p.progressPct, 100);
+                const cls = pct >= 80 ? 'good' : pct >= 50 ? 'mid' : 'low';
+                const isMonetary = ['Deposits', 'Withdrawals', 'GGR', 'BonusCost', 'NetRevenue'].includes(p.metricName);
+                const fmtFn = isMonetary ? money : fmt;
+                return `
+                    <div class="target-card">
+                        <div class="metric-name">${p.metricName}</div>
+                        <div class="values">
+                            <span class="actual">${fmtFn(p.actual)}</span>
+                            <span class="target-val">/ ${fmtFn(p.target)}</span>
+                        </div>
+                        <div class="progress-bar"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
+                        <div class="pct" style="color:var(--accent-${cls === 'good' ? 'green' : cls === 'mid' ? 'orange' : 'red'})">${p.progressPct}%</div>
                     </div>
-                    <div class="progress-bar"><div class="progress-fill ${cls}" style="width:${pct}%"></div></div>
-                    <div class="pct" style="color:var(--accent-${cls === 'good' ? 'green' : cls === 'mid' ? 'orange' : 'red'})">${p.progressPct}%</div>
-                </div>
-            `;
-        }).join('');
+                `;
+            }).join('');
+        } catch { }
     });
 
     const targetModal = document.getElementById('target-modal');
@@ -78,27 +85,30 @@ export function setupTargetsEvents() {
             targetValue: parseFloat(document.getElementById('target-value').value) || 0,
         };
         const url = id ? `/api/targets/${id}` : '/api/targets';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (res.ok) {
+        
+        try {
+            if (id) await apiPut(url, body);
+            else await apiPost(url, body);
+            
             targetModal.style.display = 'none';
+            showToast('Target saved successfully', 'success');
             setLoaded('targets', false);
             loadTargets();
             loadStats();
-        } else {
-            const err = await res.json();
-            alert(err.error || 'Error saving target');
-        }
+        } catch { }
     });
 
     document.querySelector('#targets-table').addEventListener('click', async e => {
         if (e.target.classList.contains('btn-delete')) {
             const id = parseInt(e.target.dataset.id);
-            if (!confirm('Delete this target?')) return;
-            await fetch(`/api/targets/${id}`, { method: 'DELETE' });
-            setLoaded('targets', false);
-            loadTargets();
-            loadStats();
+            if (!await showConfirm('Delete this target?')) return;
+            try {
+                await apiDelete(`/api/targets/${id}`);
+                showToast('Target deleted', 'success');
+                setLoaded('targets', false);
+                loadTargets();
+                loadStats();
+            } catch { }
         }
     });
 }

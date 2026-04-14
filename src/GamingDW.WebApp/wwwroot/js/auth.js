@@ -1,10 +1,11 @@
+import { apiGet, apiPost } from './api.js';
+
 export let currentUser = null;
 
 export async function checkAuth() {
     try {
-        const res = await fetch('/api/auth/me');
-        if (!res.ok) { window.location.href = '/login.html'; return false; }
-        currentUser = await res.json();
+        currentUser = await apiGet('/api/auth/me');
+        if (!currentUser) { window.location.href = '/login.html'; return false; }
         document.getElementById('user-name').textContent = currentUser.username;
         document.getElementById('user-title').textContent = currentUser.title;
         applyPermissions();
@@ -38,7 +39,7 @@ function applyPermissions() {
 
 export function setupAuthEvents() {
     document.getElementById('btn-logout').addEventListener('click', async () => {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        await apiPost('/api/auth/logout');
         window.location.href = '/login.html';
     });
 }

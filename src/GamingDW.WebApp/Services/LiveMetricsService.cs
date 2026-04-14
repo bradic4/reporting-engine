@@ -6,7 +6,7 @@ namespace GamingDW.WebApp.Services;
 
 public interface ILiveMetricsService
 {
-    Task<object> GetTodayMetricsAsync();
+    Task<LiveMetricsDto> GetTodayMetricsAsync();
 }
 
 public class LiveMetricsService : ILiveMetricsService
@@ -15,7 +15,7 @@ public class LiveMetricsService : ILiveMetricsService
 
     public LiveMetricsService(GamingDbContext db) => _db = db;
 
-    public async Task<object> GetTodayMetricsAsync()
+    public async Task<LiveMetricsDto> GetTodayMetricsAsync()
     {
         var today = DateTime.Today;
         var tomorrow = today.AddDays(1);
@@ -42,17 +42,16 @@ public class LiveMetricsService : ILiveMetricsService
         var plays = await _db.GameplayLogs
             .CountAsync(g => g.Timestamp >= today && g.Timestamp < tomorrow);
 
-        return new
-        {
-            timestamp = DateTime.UtcNow ,
-            sessions,
-            activePlayers,
-            deposits,
-            withdrawals,
-            bets,
-            wins,
-            ggr = bets - wins,
-            plays
-        };
+        return new LiveMetricsDto(
+            Timestamp: DateTime.UtcNow,
+            Sessions: sessions,
+            ActivePlayers: activePlayers,
+            Deposits: deposits,
+            Withdrawals: withdrawals,
+            Bets: bets,
+            Wins: wins,
+            GGR: bets - wins,
+            Plays: plays
+        );
     }
 }

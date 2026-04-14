@@ -19,12 +19,14 @@ public class ExcelImportService : IExcelImportService
 {
     private readonly GamingDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IAuditService _audit;
     private readonly ILogger<ExcelImportService> _logger;
 
-    public ExcelImportService(GamingDbContext db, IConfiguration config, ILogger<ExcelImportService> logger)
+    public ExcelImportService(GamingDbContext db, IConfiguration config, IAuditService audit, ILogger<ExcelImportService> logger)
     {
         _db = db;
         _config = config;
+        _audit = audit;
         _logger = logger;
     }
 
@@ -121,6 +123,11 @@ public class ExcelImportService : IExcelImportService
         }
 
         await _db.SaveChangesAsync();
+
+        // Audit the import operation
+        await _audit.LogAsync("Import", "DailyReport", null, null, username,
+            newValues: new { fileName = file.FileName, imported, skipped, errorCount = errors.Count });
+
         _logger.LogInformation("Excel import by {User}: {Imported} imported, {Skipped} skipped, {Errors} errors",
             username, imported, skipped, errors.Count);
         return new ImportResult(imported, skipped, imported + skipped, errors);

@@ -22,7 +22,9 @@ public class DailyReportRequestValidator : AbstractValidator<DailyReportRequest>
     {
         RuleFor(x => x.Date)
             .NotEmpty().WithMessage("Date is required")
-            .Must(d => DateOnly.TryParse(d, out _)).WithMessage("Date must be a valid date (yyyy-MM-dd)");
+            .Must(d => DateOnly.TryParse(d, out _)).WithMessage("Date must be a valid date (yyyy-MM-dd)")
+            .Must(d => !DateOnly.TryParse(d, out var date) || date <= DateOnly.FromDateTime(DateTime.Today))
+                .WithMessage("Date cannot be in the future");
 
         RuleFor(x => x.Registrations).GreaterThanOrEqualTo(0).WithMessage("Registrations must be >= 0");
         RuleFor(x => x.FTDs).GreaterThanOrEqualTo(0).WithMessage("FTDs must be >= 0");
@@ -33,6 +35,12 @@ public class DailyReportRequestValidator : AbstractValidator<DailyReportRequest>
         RuleFor(x => x.Sessions).GreaterThanOrEqualTo(0).WithMessage("Sessions must be >= 0");
         RuleFor(x => x.BonusCost).GreaterThanOrEqualTo(0).WithMessage("BonusCost must be >= 0");
         RuleFor(x => x.Notes).MaximumLength(500).WithMessage("Notes must be at most 500 characters");
+
+        // Business rule: FTDs cannot exceed registrations
+        RuleFor(x => x.FTDs)
+            .LessThanOrEqualTo(x => x.Registrations)
+            .WithMessage("FTDs cannot exceed Registrations")
+            .When(x => x.Registrations > 0 || x.FTDs > 0);
     }
 }
 
@@ -70,5 +78,9 @@ public class StaffRequestValidator : AbstractValidator<StaffRequest>
 
         RuleFor(x => x.Title)
             .MaximumLength(100).WithMessage("Title must be at most 100 characters");
+
+        RuleFor(x => x.Password)
+            .MinimumLength(8).WithMessage("Password must be at least 8 characters")
+            .When(x => !string.IsNullOrEmpty(x.Password));
     }
 }

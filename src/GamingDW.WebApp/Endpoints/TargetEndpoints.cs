@@ -14,35 +14,30 @@ public static class TargetEndpoints
 
         app.MapPost("/api/targets", async (KpiTargetRequest body, HttpContext ctx, ITargetService svc) =>
         {
-            if (!ctx.User.HasClaim("CanSetTargets", "True"))
-                return Results.Json(new { error = "Access denied" }, statusCode: 403);
-
             var username = ctx.User.Identity?.Name ?? "unknown";
             var result = await svc.CreateTargetAsync(body, username);
             return result.Error is not null
                 ? Results.BadRequest(new { error = result.Error })
                 : Results.Ok(new { result.Id });
-        }).RequireAuthorization();
+        }).RequireAuthorization("CanSetTargets")
+          .AddEndpointFilter<GamingDW.WebApp.Validation.ValidationFilter<KpiTargetRequest>>();
 
         app.MapPut("/api/targets/{id:int}", async (int id, KpiTargetRequest body, HttpContext ctx, ITargetService svc) =>
         {
-            if (!ctx.User.HasClaim("CanSetTargets", "True"))
-                return Results.Json(new { error = "Access denied" }, statusCode: 403);
-
-            var result = await svc.UpdateTargetAsync(id, body);
+            var username = ctx.User.Identity?.Name ?? "unknown";
+            var result = await svc.UpdateTargetAsync(id, body, username);
             return result.Error is not null
                 ? Results.NotFound(new { error = result.Error })
                 : Results.Ok(new { result.Id });
-        }).RequireAuthorization();
+        }).RequireAuthorization("CanSetTargets")
+          .AddEndpointFilter<GamingDW.WebApp.Validation.ValidationFilter<KpiTargetRequest>>();
 
         app.MapDelete("/api/targets/{id:int}", async (int id, HttpContext ctx, ITargetService svc) =>
         {
-            if (!ctx.User.HasClaim("CanSetTargets", "True"))
-                return Results.Json(new { error = "Access denied" }, statusCode: 403);
-
-            var success = await svc.DeleteTargetAsync(id);
+            var username = ctx.User.Identity?.Name ?? "unknown";
+            var success = await svc.DeleteTargetAsync(id, username);
             return success ? Results.Ok() : Results.NotFound(new { error = "Target not found" });
-        }).RequireAuthorization();
+        }).RequireAuthorization("CanSetTargets");
 
         app.MapGet("/api/targets/progress", async (string? date, ITargetService svc) =>
         {

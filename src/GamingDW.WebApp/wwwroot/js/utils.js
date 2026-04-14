@@ -1,3 +1,5 @@
+import { apiGet } from './api.js';
+
 export function fmt(n) { return new Intl.NumberFormat().format(n); }
 export function money(n) { return '$' + new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n); }
 export function setText(sel, val) { const el = document.querySelector(sel); if (el) el.textContent = val; }
@@ -10,7 +12,7 @@ export function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delet
 
 export async function loadStats() {
     try {
-        const d = await (await fetch('/api/stats')).json();
+        const d = await apiGet('/api/stats');
         setText('#stat-reports .stat-value', fmt(d.reports));
         setText('#stat-targets .stat-value', fmt(d.targets));
         setText('#stat-staff .stat-value', fmt(d.staff));

@@ -8,26 +8,29 @@ public record ReportResult(int? Id = null, string? Date = null, string? Error = 
 
 public interface IReportService
 {
-    Task<IEnumerable<object>> GetDailyReportsAsync(string? from, string? to);
-    Task<object?> GetDailyReportByDateAsync(string date);
+    Task<IEnumerable<DailyReportDto>> GetDailyReportsAsync(string? from, string? to, int page = 1, int pageSize = 50, string? sortBy = null, bool sortDesc = true);
+    Task<int> GetDailyReportsCountAsync(string? from, string? to);
+    Task<DailyReportDto?> GetDailyReportByDateAsync(string date);
     Task<ReportResult> CreateReportAsync(DailyReportRequest body, string username);
-    Task<ReportResult> UpdateReportAsync(int id, DailyReportRequest body);
-    Task<bool> DeleteReportAsync(int id);
-    Task<object> ComparePeriodsAsync(string from1, string to1, string from2, string to2);
+    Task<ReportResult> UpdateReportAsync(int id, DailyReportRequest body, string username);
+    Task<bool> DeleteReportAsync(int id, string username);
+    Task<ComparePeriodsDto> ComparePeriodsAsync(string from1, string to1, string from2, string to2);
 }
 
 public class ReportService : IReportService
 {
     private readonly GamingDbContext _db;
+    private readonly IAuditService _audit;
     private readonly ILogger<ReportService> _logger;
 
-    public ReportService(GamingDbContext db, ILogger<ReportService> logger)
+    public ReportService(GamingDbContext db, IAuditService audit, ILogger<ReportService> logger)
     {
         _db = db;
+        _audit = audit;
         _logger = logger;
     }
 
-    public async Task<IEnumerable<object>> GetDailyReportsAsync(string? from, string? to)
+    public async Task<IEnumerable<DailyReportDto>> GetDailyReportsAsync(string? from, string? to, int page = 1, int pageSize = 50, string? sortBy = null, bool sortDesc = true)
     {
         var query = _db.DailyReports.AsQueryable();
         if (DateOnly.TryParse(from, out var fromDate))
@@ -35,32 +38,36 @@ public class ReportService : IReportService
         if (DateOnly.TryParse(to, out var toDate))
             query = query.Where(r => r.Date <= toDate);
 
-        var data = await query.OrderByDescending(r => r.Date).ToListAsync();
-        return data.Select(r => new
+        query = sortBy?.ToLower() switch
         {
-            r.Id,
-            date = r.Date.ToString("yyyy-MM-dd"),
-            r.Registrations, r.FTDs, r.Deposits, r.Withdrawals,
-            r.GGR, r.ActivePlayers, r.Sessions, r.BonusCost,
-            netRevenue = r.NetRevenue, r.Notes, r.CreatedBy,
-            createdAt = r.CreatedAt, updatedAt = r.UpdatedAt
-        });
+            "registrations" => sortDesc ? query.OrderByDescending(r => r.Registrations) : query.OrderBy(r => r.Registrations),
+            "ftds" => sortDesc ? query.OrderByDescending(r => r.FTDs) : query.OrderBy(r => r.FTDs),
+            "deposits" => sortDesc ? query.OrderByDescending(r => r.Deposits) : query.OrderBy(r => r.Deposits),
+            "ggr" => sortDesc ? query.OrderByDescending(r => r.GGR) : query.OrderBy(r => r.GGR),
+            "activeplayers" => sortDesc ? query.OrderByDescending(r => r.ActivePlayers) : query.OrderBy(r => r.ActivePlayers),
+            "sessions" => sortDesc ? query.OrderByDescending(r => r.Sessions) : query.OrderBy(r => r.Sessions),
+            _ => sortDesc ? query.OrderByDescending(r => r.Date) : query.OrderBy(r => r.Date),
+        };
+
+        var data = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        return data.Select(MapToDto);
     }
 
-    public async Task<object?> GetDailyReportByDateAsync(string date)
+    public async Task<int> GetDailyReportsCountAsync(string? from, string? to)
+    {
+        var query = _db.DailyReports.AsQueryable();
+        if (DateOnly.TryParse(from, out var fromDate))
+            query = query.Where(r => r.Date >= fromDate);
+        if (DateOnly.TryParse(to, out var toDate))
+            query = query.Where(r => r.Date <= toDate);
+        return await query.CountAsync();
+    }
+
+    public async Task<DailyReportDto?> GetDailyReportByDateAsync(string date)
     {
         if (!DateOnly.TryParse(date, out var d)) return null;
         var report = await _db.DailyReports.FirstOrDefaultAsync(r => r.Date == d);
-        if (report == null) return null;
-        return new
-        {
-            report.Id,
-            date = report.Date.ToString("yyyy-MM-dd"),
-            report.Registrations, report.FTDs, report.Deposits, report.Withdrawals,
-            report.GGR, report.ActivePlayers, report.Sessions, report.BonusCost,
-            netRevenue = report.NetRevenue, report.Notes, report.CreatedBy,
-            createdAt = report.CreatedAt, updatedAt = report.UpdatedAt
-        };
+        return report == null ? null : MapToDto(report);
     }
 
     public async Task<ReportResult> CreateReportAsync(DailyReportRequest body, string username)
@@ -87,14 +94,20 @@ public class ReportService : IReportService
         };
         _db.DailyReports.Add(report);
         await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("Create", "DailyReport", report.Id, null, username,
+            newValues: new { report.Date, report.Registrations, report.FTDs, report.Deposits, report.Withdrawals, report.GGR, report.ActivePlayers, report.Sessions, report.BonusCost, report.Notes });
+
         _logger.LogInformation("Report created for {Date} by {User}", date, username);
         return new ReportResult(report.Id, report.Date.ToString("yyyy-MM-dd"));
     }
 
-    public async Task<ReportResult> UpdateReportAsync(int id, DailyReportRequest body)
+    public async Task<ReportResult> UpdateReportAsync(int id, DailyReportRequest body, string username)
     {
         var report = await _db.DailyReports.FindAsync(id);
         if (report == null) return new ReportResult(Error: "Report not found");
+
+        var oldValues = new { report.Date, report.Registrations, report.FTDs, report.Deposits, report.Withdrawals, report.GGR, report.ActivePlayers, report.Sessions, report.BonusCost, report.Notes };
 
         if (DateOnly.TryParse(body.Date, out var date)) report.Date = date;
         report.Registrations = body.Registrations;
@@ -109,21 +122,36 @@ public class ReportService : IReportService
         report.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Report {Id} updated", id);
+
+        await _audit.LogAsync("Update", "DailyReport", report.Id, null, username,
+            oldValues: oldValues,
+            newValues: new { report.Date, report.Registrations, report.FTDs, report.Deposits, report.Withdrawals, report.GGR, report.ActivePlayers, report.Sessions, report.BonusCost, report.Notes });
+
+        _logger.LogInformation("Report {Id} updated by {User}", id, username);
         return new ReportResult(report.Id);
     }
 
-    public async Task<bool> DeleteReportAsync(int id)
+    public async Task<bool> DeleteReportAsync(int id, string username)
     {
         var report = await _db.DailyReports.FindAsync(id);
         if (report == null) return false;
-        _db.DailyReports.Remove(report);
+
+        var oldValues = new { report.Date, report.Registrations, report.FTDs, report.Deposits, report.Withdrawals, report.GGR };
+
+        // Soft delete instead of hard delete
+        report.IsDeleted = true;
+        report.DeletedAt = DateTime.UtcNow;
+        report.DeletedBy = username;
+
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Report {Id} deleted (date: {Date})", id, report.Date);
+
+        await _audit.LogAsync("Delete", "DailyReport", report.Id, null, username, oldValues: oldValues);
+
+        _logger.LogInformation("Report {Id} soft-deleted by {User} (date: {Date})", id, username, report.Date);
         return true;
     }
 
-    public async Task<object> ComparePeriodsAsync(string from1, string to1, string from2, string to2)
+    public async Task<ComparePeriodsDto> ComparePeriodsAsync(string from1, string to1, string from2, string to2)
     {
         DateOnly.TryParse(from1, out var f1);
         DateOnly.TryParse(to1, out var t1);
@@ -133,20 +161,37 @@ public class ReportService : IReportService
         var range1 = await _db.DailyReports.Where(r => r.Date >= f1 && r.Date <= t1).ToListAsync();
         var range2 = await _db.DailyReports.Where(r => r.Date >= f2 && r.Date <= t2).ToListAsync();
 
-        object Aggregate(List<DailyReport> list) => new
-        {
-            days = list.Count,
-            registrations = list.Sum(r => r.Registrations),
-            ftds = list.Sum(r => r.FTDs),
-            deposits = list.Sum(r => r.Deposits),
-            withdrawals = list.Sum(r => r.Withdrawals),
-            ggr = list.Sum(r => r.GGR),
-            activePlayers = list.Count > 0 ? (int)list.Average(r => r.ActivePlayers) : 0,
-            sessions = list.Sum(r => r.Sessions),
-            bonusCost = list.Sum(r => r.BonusCost),
-            netRevenue = list.Sum(r => r.GGR - r.BonusCost)
-        };
-
-        return new { period1 = Aggregate(range1), period2 = Aggregate(range2) };
+        return new ComparePeriodsDto(Aggregate(range1), Aggregate(range2));
     }
+
+    private static ReportSummaryDto Aggregate(List<DailyReport> list) => new(
+        Days: list.Count,
+        Registrations: list.Sum(r => r.Registrations),
+        FTDs: list.Sum(r => r.FTDs),
+        Deposits: list.Sum(r => r.Deposits),
+        Withdrawals: list.Sum(r => r.Withdrawals),
+        GGR: list.Sum(r => r.GGR),
+        ActivePlayers: list.Count > 0 ? (int)list.Average(r => r.ActivePlayers) : 0,
+        Sessions: list.Sum(r => r.Sessions),
+        BonusCost: list.Sum(r => r.BonusCost),
+        NetRevenue: list.Sum(r => r.GGR - r.BonusCost)
+    );
+
+    private static DailyReportDto MapToDto(DailyReport r) => new(
+        Id: r.Id,
+        Date: r.Date.ToString("yyyy-MM-dd"),
+        Registrations: r.Registrations,
+        FTDs: r.FTDs,
+        Deposits: r.Deposits,
+        Withdrawals: r.Withdrawals,
+        GGR: r.GGR,
+        ActivePlayers: r.ActivePlayers,
+        Sessions: r.Sessions,
+        BonusCost: r.BonusCost,
+        NetRevenue: r.NetRevenue,
+        Notes: r.Notes,
+        CreatedBy: r.CreatedBy,
+        CreatedAt: r.CreatedAt,
+        UpdatedAt: r.UpdatedAt
+    );
 }

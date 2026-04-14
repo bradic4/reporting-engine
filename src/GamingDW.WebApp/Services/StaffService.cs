@@ -9,38 +9,39 @@ public record StaffResult(int? Id = null, string? Username = null, string? Error
 
 public interface IStaffService
 {
-    Task<IEnumerable<object>> GetAllStaffAsync();
-    Task<StaffResult> CreateStaffAsync(StaffRequest body);
-    Task<StaffResult> UpdateStaffAsync(int id, StaffRequest body);
-    Task<object> GetStatsAsync();
+    Task<IEnumerable<StaffUserDto>> GetAllStaffAsync();
+    Task<StaffResult> CreateStaffAsync(StaffRequest body, string performedBy);
+    Task<StaffResult> UpdateStaffAsync(int id, StaffRequest body, string performedBy);
+    Task<StatsDto> GetStatsAsync();
 }
 
 public class StaffService : IStaffService
 {
     private readonly GamingDbContext _db;
     private readonly AuthService _auth;
+    private readonly IAuditService _audit;
     private readonly ILogger<StaffService> _logger;
 
-    public StaffService(GamingDbContext db, AuthService auth, ILogger<StaffService> logger)
+    public StaffService(GamingDbContext db, AuthService auth, IAuditService audit, ILogger<StaffService> logger)
     {
         _db = db;
         _auth = auth;
+        _audit = audit;
         _logger = logger;
     }
 
-    public async Task<IEnumerable<object>> GetAllStaffAsync()
+    public async Task<IEnumerable<StaffUserDto>> GetAllStaffAsync()
     {
         return await _db.StaffUsers
-            .Select(s => new
-            {
+            .Select(s => new StaffUserDto(
                 s.Id, s.Username, s.Title, s.IsActive, s.CreatedAt,
                 s.CanViewReports, s.CanEditReports, s.CanSetTargets,
                 s.CanViewLive, s.CanManageStaff
-            })
+            ))
             .ToListAsync();
     }
 
-    public async Task<StaffResult> CreateStaffAsync(StaffRequest body)
+    public async Task<StaffResult> CreateStaffAsync(StaffRequest body, string performedBy)
     {
         if (string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Password))
             return new StaffResult(Error: "Username and password are required");
@@ -62,14 +63,20 @@ public class StaffService : IStaffService
         };
         _db.StaffUsers.Add(user);
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Staff user '{Username}' created", user.Username);
+
+        await _audit.LogAsync("Create", "StaffUser", user.Id, null, performedBy,
+            newValues: new { user.Username, user.Title, user.CanViewReports, user.CanEditReports, user.CanSetTargets, user.CanViewLive, user.CanManageStaff });
+
+        _logger.LogInformation("Staff user '{Username}' created by {PerformedBy}", user.Username, performedBy);
         return new StaffResult(user.Id, user.Username);
     }
 
-    public async Task<StaffResult> UpdateStaffAsync(int id, StaffRequest body)
+    public async Task<StaffResult> UpdateStaffAsync(int id, StaffRequest body, string performedBy)
     {
         var user = await _db.StaffUsers.FindAsync(id);
         if (user == null) return new StaffResult(Error: "User not found");
+
+        var oldValues = new { user.Username, user.Title, user.CanViewReports, user.CanEditReports, user.CanSetTargets, user.CanViewLive, user.CanManageStaff, user.IsActive };
 
         if (!string.IsNullOrEmpty(body.Username)) user.Username = body.Username;
         if (!string.IsNullOrEmpty(body.Password)) user.PasswordHash = _auth.HashPassword(body.Password);
@@ -82,15 +89,20 @@ public class StaffService : IStaffService
         user.IsActive = body.IsActive;
 
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Staff user '{Username}' updated", user.Username);
+
+        await _audit.LogAsync("Update", "StaffUser", user.Id, null, performedBy,
+            oldValues: oldValues,
+            newValues: new { user.Username, user.Title, user.CanViewReports, user.CanEditReports, user.CanSetTargets, user.CanViewLive, user.CanManageStaff, user.IsActive });
+
+        _logger.LogInformation("Staff user '{Username}' updated by {PerformedBy}", user.Username, performedBy);
         return new StaffResult(user.Id, user.Username);
     }
 
-    public async Task<object> GetStatsAsync()
+    public async Task<StatsDto> GetStatsAsync()
     {
         var reports = await _db.DailyReports.CountAsync();
         var targets = await _db.KpiTargets.CountAsync();
         var staff = await _db.StaffUsers.CountAsync();
-        return new { reports, targets, staff };
+        return new StatsDto(reports, targets, staff);
     }
 }

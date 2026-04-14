@@ -1,24 +1,28 @@
 import { loadStats } from './utils.js';
 import { setLoaded } from './main.js';
+import { apiGet, apiPost, apiPut } from './api.js';
+import { showToast } from './toast.js';
 
 let allStaff = [];
 
 export async function loadStaff() {
-    allStaff = await (await fetch('/api/staff')).json();
-    const tbody = document.querySelector('#staff-table tbody');
-    tbody.innerHTML = allStaff.map(s => `
-        <tr>
-            <td><strong>${s.username}</strong></td>
-            <td>${s.title}</td>
-            <td>${badge(s.canViewReports)}</td>
-            <td>${badge(s.canEditReports)}</td>
-            <td>${badge(s.canSetTargets)}</td>
-            <td>${badge(s.canViewLive)}</td>
-            <td>${badge(s.canManageStaff)}</td>
-            <td>${badge(s.isActive)}</td>
-            <td><button class="btn-edit" data-id="${s.id}">Edit</button></td>
-        </tr>
-    `).join('');
+    try {
+        allStaff = await apiGet('/api/staff') || [];
+        const tbody = document.querySelector('#staff-table tbody');
+        tbody.innerHTML = allStaff.map(s => `
+            <tr>
+                <td><strong>${s.username}</strong></td>
+                <td>${s.title}</td>
+                <td>${badge(s.canViewReports)}</td>
+                <td>${badge(s.canEditReports)}</td>
+                <td>${badge(s.canSetTargets)}</td>
+                <td>${badge(s.canViewLive)}</td>
+                <td>${badge(s.canManageStaff)}</td>
+                <td>${badge(s.isActive)}</td>
+                <td><button class="btn-edit" data-id="${s.id}">Edit</button></td>
+            </tr>
+        `).join('');
+    } catch { }
 }
 
 function badge(val) {
@@ -83,16 +87,16 @@ export function setupStaffEvents() {
             isActive: document.getElementById('perm-active').checked,
         };
         const url = id ? `/api/staff/${id}` : '/api/staff';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (res.ok) {
+        
+        try {
+            if (id) await apiPut(url, body);
+            else await apiPost(url, body);
+            
             staffModal.style.display = 'none';
+            showToast('Staff saved successfully', 'success');
             setLoaded('admin', false);
             loadStaff();
             loadStats();
-        } else {
-            const err = await res.json();
-            alert(err.error || 'Error');
-        }
+        } catch { }
     });
 }

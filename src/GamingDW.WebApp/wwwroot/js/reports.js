@@ -1,6 +1,8 @@
 import { fmt, money, loadStats } from './utils.js';
 import { currentUser } from './auth.js';
 import { setLoaded } from './main.js';
+import { apiGet, apiPost, apiPut, apiDelete, apiUpload } from './api.js';
+import { showToast, showConfirm } from './toast.js';
 
 export let allReports = [];
 
@@ -13,8 +15,11 @@ export async function loadReports() {
     if (to) params.push(`to=${to}`);
     if (params.length) url += '?' + params.join('&');
 
-    allReports = await (await fetch(url)).json();
-    renderReportsTable();
+    try {
+        const res = await apiGet(url);
+        allReports = res.data || [];
+        renderReportsTable();
+    } catch { }
 }
 
 function renderReportsTable() {
@@ -74,11 +79,14 @@ export function setupReportsEvents() {
     });
 
     async function deleteReport(id) {
-        if (!confirm('Delete this report?')) return;
-        await fetch(`/api/reports/daily/${id}`, { method: 'DELETE' });
-        setLoaded('reports', false);
-        loadReports();
-        loadStats();
+        if (!await showConfirm('Delete this report?')) return;
+        try {
+            await apiDelete(`/api/reports/daily/${id}`);
+            showToast('Report deleted', 'success');
+            setLoaded('reports', false);
+            loadReports();
+            loadStats();
+        } catch { }
     }
 
     function editReport(id) {
@@ -88,6 +96,7 @@ export function setupReportsEvents() {
         document.getElementById('report-id').value = r.id;
         document.getElementById('report-date').value = r.date;
         document.getElementById('report-reg').value = r.registrations;
+        // DTO serializes FTDs as ftDs by default
         document.getElementById('report-ftd').value = r.ftDs;
         document.getElementById('report-deposits').value = r.deposits;
         document.getElementById('report-withdrawals').value = r.withdrawals;
@@ -115,17 +124,16 @@ export function setupReportsEvents() {
             notes: document.getElementById('report-notes').value || null,
         };
         const url = id ? `/api/reports/daily/${id}` : '/api/reports/daily';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (res.ok) {
+        
+        try {
+            if (id) await apiPut(url, body);
+            else await apiPost(url, body);
             reportModal.style.display = 'none';
+            showToast('Report saved', 'success');
             setLoaded('reports', false);
             loadReports();
             loadStats();
-        } else {
-            const err = await res.json();
-            alert(err.error || 'Error saving report');
-        }
+        } catch { }
     });
 
     document.getElementById('btn-upload-report').addEventListener('click', () => {
@@ -145,22 +153,17 @@ export function setupReportsEvents() {
         formData.append('file', file);
 
         try {
-            const res = await fetch('/api/reports/upload', { method: 'POST', body: formData });
-            const data = await res.json();
-
-            if (res.ok) {
-                let msg = `✅ Imported ${data.imported} report(s)`;
-                if (data.skipped > 0) msg += `, skipped ${data.skipped} duplicate(s)`;
-                if (data.errors && data.errors.length > 0) msg += `\n⚠️ Errors:\n` + data.errors.join('\n');
-                alert(msg);
-                setLoaded('reports', false);
-                loadReports();
-                loadStats();
-            } else {
-                alert(data.error || 'Upload failed');
-            }
-        } catch (err) {
-            alert('Upload error: ' + err.message);
+            const data = await apiUpload('/api/reports/upload', formData);
+            let msg = `✅ Imported ${data.imported} report(s)`;
+            if (data.skipped > 0) msg += `, skipped ${data.skipped} duplicate(s)`;
+            if (data.errors && data.errors.length > 0) msg += `\n⚠️ Errors:\n` + data.errors.join('\n');
+            showToast(msg, data.errors && data.errors.length > 0 ? 'warning' : 'success', 0);
+            
+            setLoaded('reports', false);
+            loadReports();
+            loadStats();
+        } catch {
+            // errors handled inside api wrapper
         } finally {
             uploadBtn.textContent = origText;
             uploadBtn.disabled = false;

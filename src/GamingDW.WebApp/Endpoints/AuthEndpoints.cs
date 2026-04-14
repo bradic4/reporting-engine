@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using GamingDW.WebApp.Auth;
+using GamingDW.WebApp.Services;
+using System.Security.Claims;
 
 namespace GamingDW.WebApp.Endpoints;
 
@@ -8,7 +10,7 @@ public static class AuthEndpoints
 {
     public static void MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/auth/login", async (HttpContext ctx, AuthService auth) =>
+        app.MapPost("/api/auth/login", async (HttpContext ctx, AuthService auth, IAuditService audit) =>
         {
             var body = await ctx.Request.ReadFromJsonAsync<LoginRequest>();
             if (body == null || string.IsNullOrEmpty(body.Username) || string.IsNullOrEmpty(body.Password))
@@ -16,17 +18,32 @@ public static class AuthEndpoints
 
             var ipAddress = ctx.Connection.RemoteIpAddress?.ToString();
             var user = await auth.ValidateAsync(body.Username, body.Password, ipAddress);
+
             if (user == null)
+            {
+                await audit.LogAsync("LoginFailed", "Auth", null, null, body.Username, ipAddress: ipAddress);
                 return Results.Json(new { error = "Invalid username or password" }, statusCode: 401);
+            }
 
             var principal = auth.CreatePrincipal(user);
             await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+
+            await audit.LogAsync("Login", "Auth", user.Id, user.Id, user.Username, ipAddress: ipAddress);
+
             return Results.Ok(new { user.Username, user.Title });
         }).RequireRateLimiting("login");
 
-        app.MapPost("/api/auth/logout", async (HttpContext ctx) =>
+        app.MapPost("/api/auth/logout", async (HttpContext ctx, IAuditService audit) =>
         {
+            var username = ctx.User.Identity?.Name;
+            var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var ipAddress = ctx.Connection.RemoteIpAddress?.ToString();
+
             await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+
+            if (username != null)
+                await audit.LogAsync("Logout", "Auth", null, int.TryParse(userId, out var id) ? id : null, username, ipAddress: ipAddress);
+
             return Results.Ok();
         });
 
