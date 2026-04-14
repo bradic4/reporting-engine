@@ -176,7 +176,7 @@ public class AuthServiceTests
 public class ReportServiceTests
 {
     private ReportService CreateService(GamingDbContext db) =>
-        new(db, NullLogger<ReportService>.Instance);
+        new(db, new AuditService(db, NullLogger<AuditService>.Instance), NullLogger<ReportService>.Instance);
 
     [Fact]
     public async Task CreateReport_ValidData_Succeeds()
@@ -226,7 +226,7 @@ public class ReportServiceTests
             new DailyReportRequest("2026-02-01", 10, 5, 1000, 500, 500, 100, 200, 50, null), "user");
 
         var result = await svc.UpdateReportAsync(create.Id!.Value,
-            new DailyReportRequest("2026-02-01", 99, 5, 1000, 500, 500, 100, 200, 50, "updated"));
+            new DailyReportRequest("2026-02-01", 99, 5, 1000, 500, 500, 100, 200, 50, "updated"), "user");
 
         result.Error.Should().BeNull();
         var updated = await db.DailyReports.FindAsync(create.Id);
@@ -243,7 +243,7 @@ public class ReportServiceTests
         var create = await svc.CreateReportAsync(
             new DailyReportRequest("2026-03-01", 0, 0, 0, 0, 0, 0, 0, 0, null), "user");
 
-        var result = await svc.DeleteReportAsync(create.Id!.Value);
+        var result = await svc.DeleteReportAsync(create.Id!.Value, "user");
 
         result.Should().BeTrue();
         db.DailyReports.Count().Should().Be(0);
@@ -255,7 +255,7 @@ public class ReportServiceTests
         using var db = TestDbFactory.Create();
         var svc = CreateService(db);
 
-        var result = await svc.DeleteReportAsync(999);
+        var result = await svc.DeleteReportAsync(999, "user");
 
         result.Should().BeFalse();
     }
@@ -284,10 +284,8 @@ public class ReportServiceTests
 
         var result = await svc.ComparePeriodsAsync("2026-01-01", "2026-01-01", "2026-01-02", "2026-01-02");
 
-        var json = JsonSerializer.Serialize(result);
-        using var doc = JsonDocument.Parse(json);
-        doc.RootElement.GetProperty("period1").GetProperty("registrations").GetInt32().Should().Be(10);
-        doc.RootElement.GetProperty("period2").GetProperty("registrations").GetInt32().Should().Be(20);
+        result.Period1.Registrations.Should().Be(10);
+        result.Period2.Registrations.Should().Be(20);
     }
 }
 
@@ -297,7 +295,7 @@ public class ReportServiceTests
 public class TargetServiceTests
 {
     private TargetService CreateService(GamingDbContext db) =>
-        new(db, NullLogger<TargetService>.Instance);
+        new(db, new AuditService(db, NullLogger<AuditService>.Instance), NullLogger<TargetService>.Instance);
 
     [Fact]
     public async Task CreateTarget_ValidData_Succeeds()
@@ -329,7 +327,7 @@ public class TargetServiceTests
         using var db = TestDbFactory.Create();
         var svc = CreateService(db);
 
-        (await svc.DeleteTargetAsync(999)).Should().BeFalse();
+        (await svc.DeleteTargetAsync(999, "user")).Should().BeFalse();
     }
 
     [Fact]
@@ -354,11 +352,9 @@ public class TargetServiceTests
 
         var result = await svc.GetProgressAsync("2026-03-01");
 
-        var json = JsonSerializer.Serialize(result);
-        using var doc = JsonDocument.Parse(json);
-        var progressArr = doc.RootElement.GetProperty("progress").EnumerateArray().First();
-        progressArr.GetProperty("actual").GetDecimal().Should().Be(75);
-        progressArr.GetProperty("progressPct").GetDecimal().Should().Be(75.0m);
+        var progressArr = result.Progress.First();
+        progressArr.Actual.Should().Be(75);
+        progressArr.ProgressPct.Should().Be(75.0m);
     }
 }
 
