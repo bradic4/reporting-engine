@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GamingDW.Core/GamingDW.Core.csproj" />
+    <Project Path="src/GamingDW.DataGenerator/GamingDW.DataGenerator.csproj" />
+    <Project Path="src/GamingDW.WebApp/GamingDW.WebApp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GamingDW.Tests/GamingDW.Tests.csproj" />
+  </Folder>
+</Solution>

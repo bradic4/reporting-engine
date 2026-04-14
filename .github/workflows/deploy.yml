@@ -1,0 +1,35 @@
+name: Deploy to Azure App Service (Placeholder)
+
+on:
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+env:
+  AZURE_WEBAPP_NAME: gamingdw-prod    # set this to your application's name
+  AZURE_WEBAPP_PACKAGE_PATH: '.'      # set this to the path to your web app project, defaults to the repository root
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Build and Publish
+      run: |
+        dotnet build src/GamingDW.WebApp/GamingDW.WebApp.csproj -c Release
+        dotnet publish src/GamingDW.WebApp/GamingDW.WebApp.csproj -c Release -o ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp
+
+    # NOTE: To use this step, you must configure AZURE_WEBAPP_PUBLISH_PROFILE as a secret in your GitHub repository
+    # - name: Deploy to Azure Web App
+    #   uses: azure/webapps-deploy@v2
+    #   with:
+    #     app-name: ${{ env.AZURE_WEBAPP_NAME }}
+    #     publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+    #     package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}/myapp
