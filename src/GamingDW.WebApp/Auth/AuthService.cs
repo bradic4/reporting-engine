@@ -41,7 +41,7 @@ public class AuthService
     /// </summary>
     public async Task SeedAdminAsync()
     {
-        var password = "admin";
+        var password = string.IsNullOrEmpty(_adminSettings.DefaultPassword) ? "admin" : _adminSettings.DefaultPassword;
         var existingAdmin = await _db.StaffUsers.FirstOrDefaultAsync(u => u.Username == "admin");
 
         if (existingAdmin != null)
