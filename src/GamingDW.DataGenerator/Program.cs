@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using GamingDW.Core.Data;
 using GamingDW.DataGenerator.Generators;
 
@@ -30,9 +30,7 @@ Console.WriteLine();
 
 GamingDbContext.DefaultDbPath = dbPath;
 using var db = new GamingDbContext();
-db.Database.EnsureDeleted(); // Start fresh
-db.Database.EnsureCreated();
-Console.WriteLine("✓ Database created");
+Console.WriteLine("✓ Database connected");
 
 // Step 1: Generate users
 const int userCount = 5000;

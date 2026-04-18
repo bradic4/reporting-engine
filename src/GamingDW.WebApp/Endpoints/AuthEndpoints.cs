@@ -58,11 +58,11 @@ public static class AuthEndpoints
                 title = ctx.User.FindFirst("Title")?.Value ?? "",
                 permissions = new
                 {
-                    viewReports = ctx.User.HasClaim("CanViewReports", "True"),
-                    editReports = ctx.User.HasClaim("CanEditReports", "True"),
-                    setTargets = ctx.User.HasClaim("CanSetTargets", "True"),
-                    viewLive = ctx.User.HasClaim("CanViewLive", "True"),
-                    manageStaff = ctx.User.HasClaim("CanManageStaff", "True"),
+                    viewReports = ctx.User.HasClaim("CanViewReports", "True") || ctx.User.HasClaim("CanViewReports", "true"),
+                    editReports = ctx.User.HasClaim("CanEditReports", "True") || ctx.User.HasClaim("CanEditReports", "true"),
+                    setTargets = ctx.User.HasClaim("CanSetTargets", "True") || ctx.User.HasClaim("CanSetTargets", "true"),
+                    viewLive = ctx.User.HasClaim("CanViewLive", "True") || ctx.User.HasClaim("CanViewLive", "true"),
+                    manageStaff = ctx.User.HasClaim("CanManageStaff", "True") || ctx.User.HasClaim("CanManageStaff", "true"),
                 }
             });
         });

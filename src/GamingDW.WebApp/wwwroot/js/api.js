@@ -7,6 +7,7 @@ import { showToast } from './toast.js';
 export async function api(url, options = {}) {
     try {
         const res = await fetch(url, {
+            credentials: 'same-origin',
             ...options,
             headers: {
                 ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
@@ -15,7 +16,10 @@ export async function api(url, options = {}) {
         });
 
         if (res.status === 401) {
-            window.location.href = '/login.html';
+            // Avoid redirect loop if we're already on the login page
+            if (!window.location.pathname.endsWith('/login.html')) {
+                window.location.href = '/login.html';
+            }
             throw new Error('Unauthorized');
         }
 

@@ -3,10 +3,10 @@ import { apiGet } from './api.js';
 import { showToast } from './toast.js';
 
 export async function loadComparison() {
-    const from1 = document.getElementById('comp-from1').value;
-    const to1 = document.getElementById('comp-to1').value;
-    const from2 = document.getElementById('comp-from2').value;
-    const to2 = document.getElementById('comp-to2').value;
+    const from1 = document.getElementById('cmp-from1')?.value;
+    const to1 = document.getElementById('cmp-to1')?.value;
+    const from2 = document.getElementById('cmp-from2')?.value;
+    const to2 = document.getElementById('cmp-to2')?.value;
 
     if (!from1 || !to1 || !from2 || !to2) {
         showToast('Please select all four dates to compare', 'warning');
@@ -17,10 +17,14 @@ export async function loadComparison() {
         const url = `/api/reports/compare?from1=${from1}&to1=${to1}&from2=${from2}&to2=${to2}`;
         const data = await apiGet(url);
 
-        document.getElementById('comp-vs-text').textContent = 
-            `${from1} to ${to1}   vs   ${from2} to ${to2}`;
+        const vsText = document.getElementById('comp-vs-text');
+        if (vsText) {
+            vsText.textContent = `${from1} to ${to1}   vs   ${from2} to ${to2}`;
+        }
 
         const grid = document.getElementById('compare-grid');
+        if (!grid) return;
+
         grid.innerHTML = '';
 
         const keys = [
@@ -36,17 +40,15 @@ export async function loadComparison() {
         ];
 
         keys.forEach(obj => {
-            const v1 = data.period1[obj.k] || 0;
-            const v2 = data.period2[obj.k] || 0;
-            
-            // To compare Period1 vs Period2, usually we check if Period1 > Period2 means positive growth (Period 1 is newer usually)
-            // But let's assume standard change calculation: (v1 - v2) / v2
-            let diff = v1 - v2;
-            let pct = v2 !== 0 ? (diff / Math.abs(v2)) * 100 : 0;
-            
-            // Inverted logic for costs (bonus, withdrawals)
+            const v1 = data.period1?.[obj.k] || 0;
+            const v2 = data.period2?.[obj.k] || 0;
+
+            const diff = v1 - v2;
+            const pct = v2 !== 0 ? (diff / Math.abs(v2)) * 100 : 0;
+
             const invert = ['withdrawals', 'bonusCost'].includes(obj.k);
             let state = 'neutral';
+
             if (pct > 0) state = invert ? 'down' : 'up';
             else if (pct < 0) state = invert ? 'up' : 'down';
 
@@ -70,9 +72,14 @@ export async function loadComparison() {
                 </div>
             `;
         });
-    } catch { }
+    } catch (err) {
+        console.error('[Comparison] Failed to load comparison:', err);
+    }
 }
 
 export function setupComparisonEvents() {
-    document.getElementById('btn-compare').addEventListener('click', loadComparison);
+    const compareBtn = document.getElementById('btn-compare');
+    if (compareBtn) {
+        compareBtn.addEventListener('click', loadComparison);
+    }
 }

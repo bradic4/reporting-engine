@@ -18,6 +18,7 @@ export async function loadReports() {
     try {
         const res = await apiGet(url);
         allReports = res.data || [];
+        allReports.sort((a, b) => new Date(b.date) - new Date(a.date));
         renderReportsTable();
     } catch { }
 }

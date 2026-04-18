@@ -8,7 +8,8 @@
     <meta name="description"
         content="iGaming Marketing Analytics Workbench — manage daily reports, compare periods, set targets">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 </head>
@@ -34,9 +35,12 @@
                         class="stat-value">—</span></div>
             </div>
             <div class="user-info" id="user-info">
-                <span class="user-name" id="user-name"></span>
-                <span class="user-title" id="user-title"></span>
-                <button class="btn-logout" id="btn-logout" title="Sign Out">X</button>
+                <div class="user-avatar" id="user-avatar">?</div>
+                <div class="user-details">
+                    <span class="user-name" id="user-name"></span>
+                    <span class="user-title" id="user-title"></span>
+                </div>
+                <button class="btn-logout" id="btn-logout" title="Sign Out">⎋</button>
             </div>
         </div>
     </header>
@@ -158,18 +162,22 @@
             <div class="compare-controls">
                 <div class="compare-period">
                     <label>Period A</label>
-                    <input type="date" id="cmp-from1" class="date-input">
-                    <span class="date-sep">→</span>
-                    <input type="date" id="cmp-to1" class="date-input">
+                    <div class="compare-period-inputs">
+                        <input type="date" id="cmp-from1" class="date-input">
+                        <span class="date-sep">→</span>
+                        <input type="date" id="cmp-to1" class="date-input">
+                    </div>
                 </div>
                 <div class="compare-vs">VS</div>
                 <div class="compare-period">
                     <label>Period B</label>
-                    <input type="date" id="cmp-from2" class="date-input">
-                    <span class="date-sep">→</span>
-                    <input type="date" id="cmp-to2" class="date-input">
+                    <div class="compare-period-inputs">
+                        <input type="date" id="cmp-from2" class="date-input">
+                        <span class="date-sep">→</span>
+                        <input type="date" id="cmp-to2" class="date-input">
+                    </div>
                 </div>
-                <button class="btn-add" id="btn-compare">Compare</button>
+                <button class="btn-add" id="btn-compare">Compare Periods</button>
             </div>
             <div id="compare-results" style="display:none">
                 <div class="compare-grid" id="compare-grid"></div>

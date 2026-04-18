@@ -47,6 +47,77 @@ try
 
         var auth = scope.ServiceProvider.GetRequiredService<AuthService>();
         await auth.SeedAdminAsync();
+
+        var gdb = scope.ServiceProvider.GetRequiredService<GamingDbContext>();
+        if (!gdb.DailyReports.Any())
+        {
+            var rnd = new Random();
+            for (int i = 14; i >= 1; i--)
+            {
+                var d = DateOnly.FromDateTime(DateTime.Today.AddDays(-i));
+                gdb.DailyReports.Add(new GamingDW.Core.Models.DailyReport
+                {
+                    Id = 0,
+                    Date = d,
+                    Registrations = rnd.Next(50, 250),
+                    FTDs = rnd.Next(20, 100),
+                    Deposits = (decimal)(rnd.NextDouble() * 100000 + 20000),
+                    Withdrawals = (decimal)(rnd.NextDouble() * 30000 + 5000),
+                    GGR = (decimal)(rnd.NextDouble() * 80000 + 10000),
+                    ActivePlayers = rnd.Next(300, 1200),
+                    Sessions = rnd.Next(1000, 5000),
+                    BonusCost = (decimal)(rnd.NextDouble() * 20000 + 2000),
+                    Notes = i % 3 == 0 ? "Weekend promo" : null
+                });
+            }
+            await gdb.SaveChangesAsync();
+            Log.Information("Added sample daily reports for demonstration.");
+        }
+
+        if (!gdb.Users.Any())
+        {
+            var rng = new Random(42);
+            Log.Information("Generating 1000 users...");
+            var users = GamingDW.DataGenerator.Generators.UserGenerator.Generate(1000, rng);
+            gdb.Users.AddRange(users);
+            await gdb.SaveChangesAsync();
+
+            Log.Information("Generating activity data (sessions, transactions, gameplay logs)...");
+            var (sessions, transactions, gameplayLogs) = GamingDW.DataGenerator.Generators.ActivityGenerator.GenerateAll(users, rng);
+
+            foreach (var batch in sessions.Chunk(5000))
+            {
+                gdb.UserSessions.AddRange(batch);
+                await gdb.SaveChangesAsync();
+                gdb.ChangeTracker.Clear();
+            }
+
+            foreach (var batch in transactions.Chunk(5000))
+            {
+                gdb.Transactions.AddRange(batch);
+                await gdb.SaveChangesAsync();
+                gdb.ChangeTracker.Clear();
+            }
+
+            foreach (var batch in gameplayLogs.Chunk(5000))
+            {
+                gdb.GameplayLogs.AddRange(batch);
+                await gdb.SaveChangesAsync();
+                gdb.ChangeTracker.Clear();
+            }
+
+            // Seed Kpi Targets
+            var kpiTargets = new List<GamingDW.Core.Models.KpiTarget>
+            {
+                new GamingDW.Core.Models.KpiTarget { MetricName = "GGR", TargetValue = 500000, Period = "Monthly", PeriodStart = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1), CreatedBy = "admin", CreatedAt = DateTime.UtcNow },
+                new GamingDW.Core.Models.KpiTarget { MetricName = "Deposits", TargetValue = 1000000, Period = "Monthly", PeriodStart = new DateOnly(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1), CreatedBy = "admin", CreatedAt = DateTime.UtcNow },
+                new GamingDW.Core.Models.KpiTarget { MetricName = "ActivePlayers", TargetValue = 1000, Period = "Daily", PeriodStart = DateOnly.FromDateTime(DateTime.UtcNow), CreatedBy = "admin", CreatedAt = DateTime.UtcNow }
+            };
+            gdb.KpiTargets.AddRange(kpiTargets);
+            await gdb.SaveChangesAsync();
+
+            Log.Information("Detailed game dummy data imported successfully!");
+        }
     }
 
     // ─── Middleware Pipeline ───

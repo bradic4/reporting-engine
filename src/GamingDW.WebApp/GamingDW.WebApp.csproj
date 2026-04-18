@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GamingDW.Core\GamingDW.Core.csproj" />
+    <ProjectReference Include="..\GamingDW.DataGenerator\GamingDW.DataGenerator.csproj" />
   </ItemGroup>
 
   <ItemGroup>

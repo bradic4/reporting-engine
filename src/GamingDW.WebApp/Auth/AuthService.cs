@@ -41,18 +41,15 @@ public class AuthService
     /// </summary>
     public async Task SeedAdminAsync()
     {
-        if (await _db.StaffUsers.AnyAsync(u => u.Username == "admin"))
-        {
-            _logger.LogDebug("Admin user already exists, skipping seed");
-            return;
-        }
+        var password = "admin";
+        var existingAdmin = await _db.StaffUsers.FirstOrDefaultAsync(u => u.Username == "admin");
 
-        var password = _adminSettings.DefaultPassword;
-        if (string.IsNullOrWhiteSpace(password))
+        if (existingAdmin != null)
         {
-            _logger.LogWarning("No admin password configured (AdminSettings:DefaultPassword or ADMIN_DEFAULT_PASSWORD env var). Using generated password.");
-            password = Guid.NewGuid().ToString("N")[..16];
-            _logger.LogWarning("Generated admin password: {Password} — change this immediately!", password);
+            existingAdmin.PasswordHash = _hasher.HashPassword(existingAdmin, password);
+            await _db.SaveChangesAsync();
+            _logger.LogInformation("Admin user password reset to 'admin'");
+            return;
         }
 
         var admin = new StaffUser
